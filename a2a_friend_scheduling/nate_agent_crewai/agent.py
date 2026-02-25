@@ -93,7 +93,7 @@ class SchedulingAgent:
         """Initializes the SchedulingAgent."""
         if os.getenv("GOOGLE_API_KEY"):
             self.llm = LLM(
-                model="gemini/gemini-2.0-flash",
+                model="gemini/gemini-1.5-flash",
                 api_key=os.getenv("GOOGLE_API_KEY"),
             )
         else:

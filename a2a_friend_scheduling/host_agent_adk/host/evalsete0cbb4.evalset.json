@@ -1,0 +1,18 @@
+{
+  "eval_set_id": "evalsete0cbb4",
+  "name": "evalsete0cbb4",
+  "description": null,
+  "eval_cases": [
+    {
+      "eval_id": "cased1b26c",
+      "conversation": [],
+      "session_input": {
+        "app_name": "host",
+        "user_id": "user",
+        "state": {}
+      },
+      "creation_timestamp": 1771990218.5660043
+    }
+  ],
+  "creation_timestamp": 1771990210.9249284
+}

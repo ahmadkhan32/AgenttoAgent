@@ -88,7 +88,7 @@ class HostAgent:
 
     def create_agent(self) -> Agent:
         return Agent(
-            model="gemini-2.5-flash",
+            model="gemini-1.5-flash",
             name="Host_Agent",
             instruction=self.root_instruction,
             description="This Host agent orchestrates scheduling pickleball with friends.",
