@@ -18,6 +18,11 @@ import time
 from dotenv import load_dotenv
 from google import genai
 from fastapi import FastAPI, HTTPException
+import httpx
+from a2a.client import A2ACardResolver, A2AClient
+from a2a.types import SendMessageRequest, MessageSendParams, Task, SendMessageSuccessResponse
+import uuid
+import json
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
@@ -91,29 +96,49 @@ def _call_gemini(prompt: str, retries: int = 3) -> str:
     raise RuntimeError("Gemini rate limit hit after all retries. Please wait 60 seconds and try again.")
 
 
-# ── Friend Agent Logic (powered by Gemini) ──────────────────────────────────
-def _run_kaitlynn(topic: str, t: str) -> str:
-    """Kaitlynn Agent — her personal scheduling assistant."""
-    return _call_gemini(
-        f'You are Kaitlynn. Reply about your availability for "{topic}" at {t}. '
-        f'Be casual, 1-2 sentences, as if texting a friend.'
-    )
-
-
-def _run_nate(topic: str, t: str) -> str:
-    """Nate Agent — his personal scheduling assistant."""
-    return _call_gemini(
-        f'You are Nate. Reply about your availability for "{topic}" at {t}. '
-        f'You are usually busy but try to join. Be casual, 1-2 sentences.'
-    )
-
-
-def _run_karley(topic: str, t: str) -> str:
-    """Karley Agent — her personal scheduling assistant."""
-    return _call_gemini(
-        f'You are Karley. Reply about your availability for "{topic}" at {t}. '
-        f'You are always excited about plans. Be upbeat, 1-2 sentences.'
-    )
+# ── Friend Agent Logic (powered by Real A2A Agents) ─────────────────────────
+async def _run_real_agent(url: str, topic: str, t: str) -> str:
+    task_text = f"Can you play {topic} at {t}?"
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            card_resolver = A2ACardResolver(client, url)
+            card = await card_resolver.get_agent_card()
+            agent_client = A2AClient(client, card, url=url)
+            
+            message_id = str(uuid.uuid4())
+            task_id = str(uuid.uuid4())
+            context_id = str(uuid.uuid4())
+            
+            payload = {
+                "message": {
+                    "role": "user",
+                    "parts": [{"type": "text", "text": task_text}],
+                    "messageId": message_id,
+                    "taskId": task_id,
+                    "contextId": context_id,
+                },
+            }
+            message_request = SendMessageRequest(
+                id=message_id, params=MessageSendParams.model_validate(payload)
+            )
+            send_response = await agent_client.send_message(message_request)
+            
+            if not isinstance(
+                send_response.root, SendMessageSuccessResponse
+            ) or not isinstance(send_response.root.result, Task):
+                return f"Error connecting to agent: {send_response}"
+                
+            json_content = json.loads(send_response.root.model_dump_json(exclude_none=True))
+            resp = []
+            if json_content.get("result", {}).get("artifacts"):
+                for artifact in json_content["result"]["artifacts"]:
+                    if artifact.get("parts"):
+                        for p in artifact["parts"]:
+                            if p.get("text"):
+                                resp.append(p["text"])
+            return "\n".join(resp) if resp else "Agent responded but with no text."
+    except Exception as e:
+        return f"Agent offline or error: {str(e)}"
 
 
 def _run_host_merge(topic: str, t: str, kaitlynn: str, nate: str, karley: str) -> str:
@@ -339,10 +364,10 @@ async def start_scheduling(request: ScheduleRequest):
     t     = request.time
 
     try:
-        # A2A: Contact each friend agent sequentially (free-tier safe)
-        kaitlynn_resp = await asyncio.to_thread(_run_kaitlynn, topic, t)
-        nate_resp     = await asyncio.to_thread(_run_nate,     topic, t)
-        karley_resp   = await asyncio.to_thread(_run_karley,   topic, t)
+        # A2A: Contact each friend agent sequentially (real HTTP requests)
+        kaitlynn_resp = await _run_real_agent("http://localhost:10004", topic, t)
+        nate_resp     = await _run_real_agent("http://localhost:10003", topic, t)
+        karley_resp   = await _run_real_agent("http://localhost:10002", topic, t)
         final_plan    = await asyncio.to_thread(_run_host_merge, topic, t,
                                                 kaitlynn_resp, nate_resp, karley_resp)
 
@@ -381,9 +406,9 @@ async def ask_single_agent(agent_name: str, request: ScheduleRequest):
     Agent names: `kaitlynn`, `nate`, `karley`
     """
     agents = {
-        "kaitlynn": _run_kaitlynn,
-        "nate":     _run_nate,
-        "karley":   _run_karley,
+        "kaitlynn": "http://localhost:10004",
+        "nate":     "http://localhost:10003",
+        "karley":   "http://localhost:10002",
     }
     name = agent_name.lower()
     if name not in agents:
@@ -392,7 +417,7 @@ async def ask_single_agent(agent_name: str, request: ScheduleRequest):
             detail=f"Agent '{agent_name}' not found. Available: {list(agents.keys())}"
         )
     try:
-        response = await asyncio.to_thread(agents[name], request.meeting_topic, request.time)
+        response = await _run_real_agent(agents[name], request.meeting_topic, request.time)
         return {
             "agent": agent_name.capitalize() + "_Agent",
             "meeting_topic": request.meeting_topic,

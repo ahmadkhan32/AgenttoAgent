@@ -23,6 +23,7 @@ from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.adk.tools.tool_context import ToolContext
+from google.adk.models.lite_llm import LiteLlm
 from google.genai import types
 
 from .pickleball_tools import (
@@ -32,7 +33,7 @@ from .pickleball_tools import (
 from .remote_agent_connection import RemoteAgentConnections
 
 load_dotenv()
-nest_asyncio.apply()
+# nest_asyncio.apply()
 
 
 class HostAgent:
@@ -88,7 +89,7 @@ class HostAgent:
 
     def create_agent(self) -> Agent:
         return Agent(
-            model="gemini-1.5-flash",
+            model=LiteLlm("ollama_chat/gpt-oss:20b-cloud", api_base="http://localhost:11434"),
             name="Host_Agent",
             instruction=self.root_instruction,
             description="This Host agent orchestrates scheduling pickleball with friends.",
@@ -235,17 +236,20 @@ def _get_initialized_host_agent_sync():
         print("HostAgent initialized")
         return hosting_agent_instance.create_agent()
 
+    def _run_in_thread():
+        new_loop = asyncio.new_event_loop()
+        try:
+            return new_loop.run_until_complete(_async_main())
+        finally:
+            new_loop.close()
+
     try:
-        return asyncio.run(_async_main())
-    except RuntimeError as e:
-        if "asyncio.run() cannot be called from a running event loop" in str(e):
-            print(
-                f"Warning: Could not initialize HostAgent with asyncio.run(): {e}. "
-                "This can happen if an event loop is already running (e.g., in Jupyter). "
-                "Consider initializing HostAgent within an async function in your application."
-            )
-        else:
-            raise
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            return executor.submit(_run_in_thread).result()
+    except Exception as e:
+        print(f"Failed to initialize HostAgent: {e}")
+        raise
 
 
 root_agent = _get_initialized_host_agent_sync()

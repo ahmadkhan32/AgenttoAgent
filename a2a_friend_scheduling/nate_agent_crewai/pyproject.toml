@@ -10,4 +10,5 @@ dependencies = [
     "python-dotenv",
     "uvicorn",
     "google-generativeai",
+    "litellm>=1.75.3",
 ] 

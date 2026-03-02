@@ -91,13 +91,10 @@ class SchedulingAgent:
 
     def __init__(self):
         """Initializes the SchedulingAgent."""
-        if os.getenv("GOOGLE_API_KEY"):
-            self.llm = LLM(
-                model="gemini/gemini-1.5-flash",
-                api_key=os.getenv("GOOGLE_API_KEY"),
-            )
-        else:
-            raise ValueError("GOOGLE_API_KEY environment variable not set.")
+        self.llm = LLM(
+            model="ollama/gpt-oss:20b-cloud",
+            base_url="http://localhost:11434"
+        )
 
         self.scheduling_assistant = Agent(
             role="Personal Scheduling Assistant",

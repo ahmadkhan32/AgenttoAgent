@@ -2,6 +2,7 @@ import random
 from datetime import date, datetime, timedelta
 
 from google.adk.agents import LlmAgent
+from google.adk.models.lite_llm import LiteLlm
 
 
 def generate_karley_calendar() -> dict[str, list[str]]:
@@ -67,7 +68,7 @@ def get_availability(start_date: str, end_date: str) -> str:
 def create_agent() -> LlmAgent:
     """Constructs the ADK agent for Karley."""
     return LlmAgent(
-        model="gemini-1.5-flash",
+        model=LiteLlm("ollama_chat/gpt-oss:20b-cloud", api_base="http://localhost:11434"),
         name="Karley_Agent",
         instruction="""
             **Role:** You are Karley's personal scheduling assistant. 

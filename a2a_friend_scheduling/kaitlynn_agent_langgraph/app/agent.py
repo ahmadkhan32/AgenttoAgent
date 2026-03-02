@@ -6,7 +6,7 @@ from typing import Any, List, Literal
 from langchain_core.messages import AIMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_ollama import ChatOllama
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import create_react_agent
 from pydantic import BaseModel, Field
@@ -118,7 +118,7 @@ class KaitlynAgent:
     )
 
     def __init__(self):
-        self.model = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
+        self.model = ChatOllama(model="gpt-oss:20b-cloud", base_url="http://localhost:11434")
         self.tools = [get_availability]
 
         self.graph = create_react_agent(

@@ -17,7 +17,7 @@ dependencies = [
     "uvicorn",
     "google-generativeai",
     "httpx",
-
     # Kaitlyn's agent dependencies (future)
     # "langgraph"
+    "litellm>=1.82.0",
 ]
